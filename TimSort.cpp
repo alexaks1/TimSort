@@ -7,6 +7,10 @@ using namespace std;
 //https://neerc.ifmo.ru/wiki/index.php?title=Timsort
 //Сортировать нужно в неубывающем порядке (1, 3, 2, 6, 2, 4) => (1, 2, 2, 3, 4, 6)
 
+
+
+#define ITER
+#ifdef ITER
 ///Тут реализована сортировка вставками 
 void insertionsort(vector<int>::iterator begin, vector<int>::iterator end) {
     for (vector<int>::iterator i = begin + 1; i < end; ++i)
@@ -131,6 +135,7 @@ void timsortMerge(vector<pair<int, int>>& stek, vector<int>::iterator begin, vec
         {
             Merge(begin + stek[stek.size() - 2].first, begin + stek[stek.size() - 2].first + stek[stek.size() - 2].second, begin + stek[stek.size() - 1].first, begin + stek[stek.size() - 1].first + stek[stek.size() - 1].second);
             stek[stek.size() - 2].second += stek[stek.size() - 1].second;
+            stek.pop_back();
         }
         if ((stek.size() >= 3) && (Z <= X + Y))
         {
@@ -139,22 +144,19 @@ void timsortMerge(vector<pair<int, int>>& stek, vector<int>::iterator begin, vec
             {
                 Merge(begin + stek[stek.size() - 2].first, begin + stek[stek.size() - 2].first + stek[stek.size() - 2].second, begin + stek[stek.size() - 1].first, begin + stek[stek.size() - 1].first + stek[stek.size() - 1].second);
                 stek[stek.size() - 2].second += stek[stek.size() - 1].second;
+                stek.pop_back();
             }
             else
                 //Merge(Z, Y)
             {
                 Merge(begin + stek[stek.size() - 3].first, begin + stek[stek.size() - 3].first + stek[stek.size() - 3].second, begin + stek[stek.size() - 2].first, begin + stek[stek.size() - 2].first + stek[stek.size() - 2].second);
                 stek[stek.size() - 3].second += stek[stek.size() - 2].second;
+                stek.erase(stek.end() - 2);
             }
         }
-        stek.pop_back();
+        
     }
 }
-
-#define ITER
-
-#ifdef ITER
-
 //сортировать нужно интервал [begin, end)
 void timsort(vector<int>::iterator begin, vector<int>::iterator end) {
     pair<int, int> buffer;
@@ -182,12 +184,151 @@ void timsort(vector<int>::iterator begin, vector<int>::iterator end) {
     timsortMerge(stek, begin, end);
 }
 #else
-
-//индексация должна быть с нуля, сортировать нужно интервал [begin, end)
-void timsort(vector<int>& vector, int begin, int end) {
-
+int find_minrun(int n)//n - size
+{
+    bool flag = 0;
+    while (n >= 64)
+    {
+        flag |= n & 1;
+        n >>= 1;
+    }
+    return n + flag;
 }
+void Insertion(vector<int>& Arr, int begin, int end)
+{
+    for (int i = begin; i < end; i++)
+    {
+        int buff = Arr[i];
+        for (int j = i - 1; ((j >= begin) && (buff < Arr[j])); j--)
+        {
+            Arr[j + 1] = Arr[j];
+            Arr[j] = buff;
+        }
+    }
+}
+void find_and_sort_run(vector<int>& Arr, vector<pair<int, int>>& runs, int minrun, int begin, int end)
+{
+    int index;//начало run
+    int run;//размер подмассива
+    pair<int, int> newrun;
 
+    int i = begin;
+    while (i != end)
+    {
+        run = 0;
+        index = i;
+        ++i;
+        ++run;
+        if (i != end)
+        {
+            ++i;
+            ++run;
+            if (Arr[i - 2] <= Arr[i - 1])
+            {
+                while ((i != end) && ((Arr[i - 1] <= Arr[i]) || (run < minrun)))
+                {
+                    ++i;
+                    ++run;
+                }
+            }
+            else if (Arr[i - 2] > Arr[i - 1])
+            {
+                while ((i != end) && ((Arr[i - 1] > Arr[i]) || (run < minrun)))
+                {
+                    ++i;
+                    ++run;
+                }
+            }
+        }
+        Insertion(Arr, index, i);//сортировка подмассива
+        newrun.first = index;
+        newrun.second = run;
+        runs.push_back(newrun);//добавляем подмассив в стек
+    }
+}
+void Merge(vector<int>& Arr, int leftbegin, int leftend, int rightbegin, int rightend)//слияние
+{
+    vector<int> buff;
+    //копируем левый подмассив 
+    for (int i = leftbegin; i <= leftend; ++i)
+        buff.push_back(Arr[i]);
+
+    int i = leftbegin;
+    int j = rightbegin;
+    int k = 0;
+    while ((i < rightend) && (j < rightend) && (k < buff.size() - 1))
+    {
+        if (buff[k] <= Arr[j])
+        {
+            Arr[i] = buff[k];
+            ++i;
+            ++k;
+        }
+        else if (buff[k] > Arr[j])
+        {
+            Arr[i] = Arr[j];
+            ++i;
+            ++j;
+        }
+    }
+    //докидываем неиспользованные элменты
+    while (j < rightend)
+    {
+        Arr[i] = Arr[j];
+        ++i;
+        ++j;
+    }
+    while (k < buff.size() - 1)
+    {
+        Arr[i] = buff[k];
+        ++i;
+        ++k;
+    }
+}
+//индексация должна быть с нуля, сортировать нужно интервал [begin, end)
+void timsort(vector<int>& Arr, int begin, int end) {
+    int minrun;//минимальная длина подмассива
+    int run;//длина подмассива
+    int n = end - begin;//длина сортируемого массива
+    vector<pair<int, int>> runs;//стек пар <начало, размер> подмассивов run
+
+    minrun = find_minrun(n);
+    cout << minrun << endl;
+    find_and_sort_run(Arr, runs, minrun, begin, end);//тут и инициализация runs
+
+    //сливаем содержимое стека
+    //.first - его начало
+    //.second - размер
+    while (runs.size() > 1)
+    {
+        pair<int, int> Xrun = runs[runs.size() - 1];
+        pair<int, int> Yrun = runs[runs.size() - 2];
+        pair<int, int> Zrun;
+        if (runs.size() > 2)
+            Zrun = runs[runs.size() - 3];
+        if ((Yrun.second <= Xrun.second) && (runs.size() >= 2))
+        {
+            Merge(Arr, Yrun.first, Yrun.first + Yrun.second, Xrun.first, Xrun.first + Xrun.second);//слив x c y
+            runs[runs.size() - 2].second = runs[runs.size() - 2].second + runs[runs.size() - 1].second;
+            runs.pop_back();
+        }
+        if ((Zrun.second <= Xrun.second + Yrun.second) && (runs.size() >= 3))
+        {
+            if (Xrun.second <= Zrun.second)
+            {
+                Merge(Arr, Yrun.first, Yrun.first + Yrun.second, Xrun.first, Xrun.first + Xrun.second);//слив x c y
+                runs[runs.size() - 2].second = runs[runs.size() - 2].second + runs[runs.size() - 1].second;
+                runs.pop_back();
+            }
+            else if (Xrun.second > Zrun.second)
+            {
+                Merge(Arr, Zrun.first, Zrun.first + Zrun.second, Yrun.first, Yrun.first + Yrun.second);//слив y c z
+                runs[runs.size() - 3].second = runs[runs.size() - 3].second + runs[runs.size() - 2].second;
+                runs.pop_back();
+            }
+        }
+    }
+}
 #endif
 
 int testcaseNumber = 1;
